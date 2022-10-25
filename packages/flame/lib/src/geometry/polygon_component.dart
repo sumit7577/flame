@@ -38,6 +38,7 @@ class PolygonComponent extends ShapeComponent {
     super.children,
     super.priority,
     super.paint,
+    super.paintLayers,
     bool? shrinkToBounds,
   })  : assert(
           _vertices.length > 2,
@@ -76,6 +77,7 @@ class PolygonComponent extends ShapeComponent {
     Anchor? anchor,
     int? priority,
     Paint? paint,
+    List<Paint>? paintLayers,
     bool? shrinkToBounds,
   }) : this(
           normalsToVertices(relation, parentSize),
@@ -86,6 +88,7 @@ class PolygonComponent extends ShapeComponent {
           scale: scale,
           priority: priority,
           paint: paint,
+          paintLayers: paintLayers,
           shrinkToBounds: shrinkToBounds,
         );
 
@@ -106,8 +109,7 @@ class PolygonComponent extends ShapeComponent {
 
   // Used to not create new Vector2 objects when calculating the top left of the
   // bounds of the polygon.
-  @internal
-  final topLeft = Vector2.zero();
+  final _topLeft = Vector2.zero();
 
   @protected
   void refreshVertices({required List<Vector2> newVertices}) {
@@ -115,24 +117,24 @@ class PolygonComponent extends ShapeComponent {
       newVertices.length == _vertices.length,
       'A polygon can not change their number of vertices',
     );
-    topLeft.setFrom(newVertices[0]);
+    _topLeft.setFrom(newVertices[0]);
     newVertices.forEachIndexed((i, _) {
       final newVertex = newVertices[i];
       _vertices[i].setFrom(newVertex);
-      topLeft.x = min(topLeft.x, newVertex.x);
-      topLeft.y = min(topLeft.y, newVertex.y);
+      _topLeft.x = min(_topLeft.x, newVertex.x);
+      _topLeft.y = min(_topLeft.y, newVertex.y);
     });
     _path
       ..reset()
       ..addPolygon(
-        vertices.map((p) => (p - topLeft).toOffset()).toList(growable: false),
+        vertices.map((p) => (p - _topLeft).toOffset()).toList(growable: false),
         true,
       );
     if (shrinkToBounds) {
       final bounds = _path.getBounds();
       size.setValues(bounds.width, bounds.height);
       if (!manuallyPositioned) {
-        position = Anchor.topLeft.toOtherAnchorPosition(topLeft, anchor, size);
+        position = Anchor.topLeft.toOtherAnchorPosition(_topLeft, anchor, size);
       }
     }
   }
@@ -151,7 +153,7 @@ class PolygonComponent extends ShapeComponent {
       vertices.forEachIndexed((i, vertex) {
         _globalVertices[i]
           ..setFrom(vertex)
-          ..sub(topLeft)
+          ..sub(_topLeft)
           ..multiply(scale)
           ..add(position)
           ..rotate(angle, center: position);
@@ -172,7 +174,13 @@ class PolygonComponent extends ShapeComponent {
   @override
   void render(Canvas canvas) {
     if (renderShape) {
-      canvas.drawPath(_path, paint);
+      if (hasPaintLayers) {
+        for (final paint in paintLayers) {
+          canvas.drawPath(_path, paint);
+        }
+      } else {
+        canvas.drawPath(_path, paint);
+      }
     }
   }
 
@@ -213,8 +221,8 @@ class PolygonComponent extends ShapeComponent {
     for (var i = 0; i < _vertices.length; i++) {
       final edge = getEdge(i, vertices: vertices);
       final isOutside = (edge.to.x - edge.from.x) *
-                  (point.y - edge.from.y + topLeft.y) -
-              (point.x - edge.from.x + topLeft.x) * (edge.to.y - edge.from.y) >
+                  (point.y - edge.from.y + _topLeft.y) -
+              (point.x - edge.from.x + _topLeft.x) * (edge.to.y - edge.from.y) >
           0;
       if (isOutside) {
         return false;
