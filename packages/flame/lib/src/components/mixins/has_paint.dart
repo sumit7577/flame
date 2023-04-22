@@ -3,6 +3,7 @@ import 'dart:ui';
 
 import 'package:flame/components.dart';
 import 'package:flame/effects.dart';
+import 'package:flame/src/effects/provider_interfaces.dart';
 import 'package:flame/src/palette.dart';
 import 'package:meta/meta.dart';
 
@@ -14,8 +15,11 @@ import 'package:meta/meta.dart';
 /// [T], that can be omitted if the component only has one paint.
 /// [paintLayers] paints should be drawn in list order during the render. The
 /// main Paint is the first element.
-mixin HasPaint<T extends Object> on Component implements OpacityProvider {
+mixin HasPaint<T extends Object> on Component
+    implements OpacityProvider, PaintProvider {
   late final Map<T, Paint> _paints = {};
+
+  @override
   Paint paint = BasicPalette.white.paint();
 
   @internal
@@ -26,16 +30,16 @@ mixin HasPaint<T extends Object> on Component implements OpacityProvider {
   /// Returns the main paint if no [paintId] is provided.
   Paint getPaint([T? paintId]) {
     if (paintId == null) {
-      return paint;
+      return this.paint;
     }
 
-    final _paint = _paints[paintId];
+    final paint = _paints[paintId];
 
-    if (_paint == null) {
+    if (paint == null) {
       throw ArgumentError('No Paint found for $paintId');
     }
 
-    return _paint;
+    return paint;
   }
 
   /// Sets a paint on the collection.
@@ -149,8 +153,8 @@ mixin HasPaint<T extends Object> on Component implements OpacityProvider {
   }) {
     return _MultiPaintOpacityProvider(
       paintIds ?? (List<T?>.from(_paints.keys)..add(null)),
-      includeLayers,
       this,
+      includeLayers: includeLayers,
     );
   }
 }
@@ -169,7 +173,11 @@ class _ProxyOpacityProvider<T extends Object> implements OpacityProvider {
 }
 
 class _MultiPaintOpacityProvider<T extends Object> implements OpacityProvider {
-  _MultiPaintOpacityProvider(this.paintIds, this.includeLayers, this.target) {
+  _MultiPaintOpacityProvider(
+    this.paintIds,
+    this.target, {
+    required this.includeLayers,
+  }) {
     final maxOpacity = opacity;
 
     _opacityRatios = [

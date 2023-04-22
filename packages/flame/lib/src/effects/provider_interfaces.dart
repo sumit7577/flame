@@ -1,3 +1,5 @@
+import 'dart:ui';
+
 import 'package:flame/components.dart';
 
 /// Interface for a component that can be affected by move effects.
@@ -44,9 +46,14 @@ abstract class AnchorProvider {
   set anchor(Anchor value);
 }
 
-/// Interface for a component that can be affected by size effects.
-abstract class SizeProvider {
+/// Interface for a class that has [size] property which can be read but not
+/// modified.
+abstract class ReadonlySizeProvider {
   Vector2 get size;
+}
+
+/// Interface for a component that can be affected by size effects.
+abstract class SizeProvider extends ReadonlySizeProvider {
   set size(Vector2 value);
 }
 
@@ -63,4 +70,12 @@ abstract class SizeProvider {
 abstract class OpacityProvider {
   double get opacity;
   set opacity(double value);
+}
+
+/// Interface for a component that can be affected by Paint effects.
+///
+/// See [HasPaint] for an example implementation.
+abstract class PaintProvider {
+  Paint get paint;
+  set paint(Paint value);
 }

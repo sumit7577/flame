@@ -6,6 +6,13 @@ import 'package:vector_math/vector_math_64.dart';
 export 'package:vector_math/vector_math_64.dart' hide Colors;
 
 extension Vector2Extension on Vector2 {
+  /// This is a reusable vector that can be used within the [Vector2Extension]
+  /// to avoid creation of new Vector2 instances.
+  ///
+  /// Avoid using this in async extension methods, as it can lead to race
+  /// conditions.
+  static final _reusableVector = Vector2.zero();
+
   /// Creates an [Offset] from the [Vector2]
   Offset toOffset() => Offset(x, y);
 
@@ -31,7 +38,13 @@ extension Vector2Extension on Vector2 {
 
   /// Linearly interpolate towards another Vector2
   void lerp(Vector2 to, double t) {
-    setFrom(this + (to - this) * t);
+    setFrom(
+      _reusableVector
+        ..setFrom(to)
+        ..sub(this)
+        ..scale(t)
+        ..add(this),
+    );
   }
 
   /// Whether the [Vector2] is the zero vector or not
@@ -80,6 +93,21 @@ extension Vector2Extension on Vector2 {
     }
   }
 
+  /// Clamps the [length] of this vector.
+  ///
+  /// This means that if the length is less than [min] the length will be set to
+  /// [min] and if the length is larger than [max], the length will be set to
+  /// [max]. If the length is in between [min] and [max], no changes will be
+  /// made.
+  void clampLength(double min, double max) {
+    final lengthSquared = length2;
+    if (lengthSquared > max * max) {
+      scaleTo(max);
+    } else if (lengthSquared < min * min) {
+      scaleTo(min);
+    }
+  }
+
   /// Project this onto [other].
   ///
   /// [other] needs to have a length > 0;
@@ -113,7 +141,10 @@ extension Vector2Extension on Vector2 {
     double ds,
   ) {
     if (this != target) {
-      final diff = target - this;
+      final diff = _reusableVector
+        ..setFrom(target)
+        ..sub(this);
+
       if (diff.length < ds) {
         setFrom(target);
       } else {
@@ -134,7 +165,8 @@ extension Vector2Extension on Vector2 {
   /// Down: Vector(0.0, 1.0).screenAngle == +-pi
   /// Left: Vector(-1.0, 0.0).screenAngle == -pi/2
   /// Right: Vector(-1.0, 0.0).screenAngle == pi/2
-  double screenAngle() => (clone()..y *= -1).angleToSigned(Vector2(0.0, 1.0));
+  double screenAngle() => (_reusableVector..setValues(x, y * (-1)))
+      .angleToSigned(Vector2(0.0, 1.0));
 
   /// Modulo/Remainder
   Vector2 operator %(Vector2 mod) => Vector2(x % mod.x, y % mod.y);

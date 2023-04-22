@@ -1,7 +1,8 @@
 import 'dart:ui';
 
-import 'package:flame/src/components/core/component.dart';
-import 'package:flame/src/extensions/vector2.dart';
+import 'package:flame/components.dart';
+import 'package:flame/src/components/core/component_tree_root.dart';
+import 'package:flame/src/effects/provider_interfaces.dart';
 import 'package:flame/src/game/camera/camera.dart';
 import 'package:flame/src/game/camera/camera_wrapper.dart';
 import 'package:flame/src/game/game.dart';
@@ -15,7 +16,9 @@ import 'package:meta/meta.dart';
 ///
 /// This is the recommended base class to use for most games made with Flame.
 /// It is based on the Flame Component System (also known as FCS).
-class FlameGame extends Component with Game {
+class FlameGame extends ComponentTreeRoot
+    with Game
+    implements ReadonlySizeProvider {
   FlameGame({
     super.children,
     Camera? camera,
@@ -30,6 +33,9 @@ class FlameGame extends Component with Game {
 
   late final CameraWrapper _cameraWrapper;
 
+  @internal
+  late final List<ComponentsNotifier> notifiers = [];
+
   /// The camera translates the coordinate space after the viewport is applied.
   Camera get camera => _cameraWrapper.camera;
 
@@ -41,6 +47,13 @@ class FlameGame extends Component with Game {
   /// This does not match the Flutter widget size; for that see [canvasSize].
   @override
   Vector2 get size => camera.gameSize;
+
+  @override
+  @internal
+  void mount() {
+    super.mount();
+    setMounted();
+  }
 
   /// This implementation of render renders each component, making sure the
   /// canvas is reset for each one.
@@ -74,12 +87,12 @@ class FlameGame extends Component with Game {
 
   @override
   void updateTree(double dt) {
-    lifecycle.processQueues();
-    children.updateComponentList();
+    processLifecycleEvents();
     if (parent != null) {
       update(dt);
     }
     children.forEach((c) => c.updateTree(dt));
+    processRebalanceEvents();
   }
 
   /// This passes the new size along to every component in the tree via their
@@ -94,17 +107,14 @@ class FlameGame extends Component with Game {
   /// the coordinate system appropriately.
   @override
   @mustCallSuper
-  void onGameResize(Vector2 canvasSize) {
-    if (!isMounted) {
-      // TODO(st-pasha): remove this hack, which is for test purposes only
-      setMounted();
-    }
-    camera.handleResize(canvasSize);
-    super.onGameResize(canvasSize); // Game.onGameResize
+  void onGameResize(Vector2 size) {
+    camera.handleResize(size);
+    super.onGameResize(size);
     // [onGameResize] is declared both in [Component] and in [Game]. Since
     // there is no way to explicitly call the [Component]'s implementation,
     // we propagate the event to [FlameGame]'s children manually.
-    handleResize(canvasSize);
+    handleResize(size);
+    children.forEach((child) => child.onParentResize(size));
   }
 
   /// Ensure that all pending tree operations finish.
@@ -122,12 +132,8 @@ class FlameGame extends Component with Game {
       // Give chance to other futures to execute first
       await Future<void>.delayed(Duration.zero);
       repeat = false;
-      descendants(includeSelf: true).forEach(
-        (Component child) {
-          child.processPendingLifecycleEvents();
-          repeat |= child.hasPendingLifecycleEvents;
-        },
-      );
+      processLifecycleEvents();
+      repeat |= hasLifecycleEvents;
     }
   }
 
@@ -150,4 +156,34 @@ class FlameGame extends Component with Game {
 
   @override
   Projector get projector => camera.combinedProjector;
+
+  /// Returns a [ComponentsNotifier] for the given type [T].
+  ///
+  /// This method handles duplications, so there will never be
+  /// more than one [ComponentsNotifier] for a given type, meaning
+  /// that this method can be called as many times as needed for a type.
+  ComponentsNotifier<T> componentsNotifier<T extends Component>() {
+    for (final notifier in notifiers) {
+      if (notifier is ComponentsNotifier<T>) {
+        return notifier;
+      }
+    }
+    final notifier = ComponentsNotifier<T>(
+      descendants().whereType<T>().toList(),
+    );
+    notifiers.add(notifier);
+    return notifier;
+  }
+
+  @internal
+  void propagateToApplicableNotifiers(
+    Component component,
+    void Function(ComponentsNotifier) callback,
+  ) {
+    for (final notifier in notifiers) {
+      if (notifier.applicable(component)) {
+        callback(notifier);
+      }
+    }
+  }
 }

@@ -6,19 +6,19 @@ import 'package:tiled/tiled.dart';
 
 @internal
 class ObjectLayer extends RenderableLayer<ObjectGroup> {
-  ObjectLayer(
-    super.layer,
-    super.parent,
-    super.map,
-    super.destTileSize,
-  );
+  ObjectLayer({
+    required super.layer,
+    required super.parent,
+    required super.map,
+    required super.destTileSize,
+  });
 
   @override
   void render(Canvas canvas, Camera? camera) {
     // nothing to do
   }
 
-  // ignore unrenderable layers when looping over the layers to render
+  // ignore non-renderable layers when looping over the layers to render
   @override
   bool get visible => false;
 
@@ -27,7 +27,12 @@ class ObjectLayer extends RenderableLayer<ObjectGroup> {
     TiledMap map,
     Vector2 destTileSize,
   ) async {
-    return ObjectLayer(layer, null, map, destTileSize);
+    return ObjectLayer(
+      layer: layer,
+      parent: null,
+      map: map,
+      destTileSize: destTileSize,
+    );
   }
 
   @override

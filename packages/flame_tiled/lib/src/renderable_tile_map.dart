@@ -6,39 +6,37 @@ import 'package:flame/game.dart';
 import 'package:flame_tiled/src/flame_tsx_provider.dart';
 import 'package:flame_tiled/src/mutable_transform.dart';
 import 'package:flame_tiled/src/renderable_layers/group_layer.dart';
-import 'package:flame_tiled/src/renderable_layers/image_layer.dart';
-import 'package:flame_tiled/src/renderable_layers/object_layer.dart';
 import 'package:flame_tiled/src/renderable_layers/renderable_layer.dart';
-import 'package:flame_tiled/src/renderable_layers/tile_layer.dart';
+import 'package:flame_tiled/src/renderable_layers/tile_layers/tile_layer.dart';
 import 'package:flame_tiled/src/tile_animation.dart';
 import 'package:flame_tiled/src/tile_atlas.dart';
 import 'package:flame_tiled/src/tile_stack.dart';
 import 'package:flutter/painting.dart';
-import 'package:tiled/tiled.dart' as tiled;
+import 'package:tiled/tiled.dart';
 
 /// {@template _renderable_tiled_map}
-/// This is a wrapper over Tiled's [tiled.TiledMap] which can be rendered to a
+/// This is a wrapper over Tiled's [TiledMap] which can be rendered to a
 /// canvas.
 ///
 /// Internally each layer is wrapped with a [RenderableLayer] which handles
 /// rendering and caching for supported layer types:
-///  - [tiled.TileLayer] is supported with pre-computed SpriteBatches
-///  - [tiled.ImageLayer] is supported with [paintImage]
+///  - [TileLayer] is supported with pre-computed SpriteBatches
+///  - [ImageLayer] is supported with [paintImage]
 ///
 /// This also supports the following properties:
-///  - [tiled.TiledMap.backgroundColor]
-///  - [tiled.Layer.opacity]
-///  - [tiled.Layer.offsetX]
-///  - [tiled.Layer.offsetY]
-///  - [tiled.Layer.parallaxX] (only supported if [Camera] is supplied)
-///  - [tiled.Layer.parallaxY] (only supported if [Camera] is supplied)
+///  - [TiledMap.backgroundColor]
+///  - [Layer.opacity]
+///  - [Layer.offsetX]
+///  - [Layer.offsetY]
+///  - [Layer.parallaxX] (only supported if [Camera] is supplied)
+///  - [Layer.parallaxY] (only supported if [Camera] is supplied)
 ///
 /// {@endtemplate}
 class RenderableTiledMap {
-  /// [tiled.TiledMap] instance for this map.
-  final tiled.TiledMap map;
+  /// [TiledMap] instance for this map.
+  final TiledMap map;
 
-  /// Layers to be rendered, in the same order as [tiled.TiledMap.layers]
+  /// Layers to be rendered, in the same order as [TiledMap.layers]
   final List<RenderableLayer> renderableLayers;
 
   /// The target size for each tile in the tiled map.
@@ -51,7 +49,7 @@ class RenderableTiledMap {
   /// Paint for the map's background color, if there is one
   late final Paint? _backgroundPaint;
 
-  final Map<tiled.Tile, TileFrames> animationFrames;
+  final Map<Tile, TileFrames> animationFrames;
 
   /// {@macro _renderable_tiled_map}
   RenderableTiledMap(
@@ -73,9 +71,9 @@ class RenderableTiledMap {
   }
 
   /// Changes the visibility of the corresponding layer, if different
-  void setLayerVisibility(int layerId, bool visibility) {
-    if (map.layers[layerId].visible != visibility) {
-      map.layers[layerId].visible = visibility;
+  void setLayerVisibility(int layerId, {required bool visible}) {
+    if (map.layers[layerId].visible != visible) {
+      map.layers[layerId].visible = visible;
       _refreshCache();
     }
   }
@@ -91,10 +89,10 @@ class RenderableTiledMap {
     required int layerId,
     required int x,
     required int y,
-    required tiled.Gid gid,
+    required Gid gid,
   }) {
     final layer = map.layers[layerId];
-    if (layer is tiled.TileLayer) {
+    if (layer is TileLayer) {
       final td = layer.tileData;
       if (td != null) {
         if (td[y][x].tile != gid.tile ||
@@ -109,13 +107,13 @@ class RenderableTiledMap {
   }
 
   /// Gets the Gid  of the corresponding layer at the given position
-  tiled.Gid? getTileData({
+  Gid? getTileData({
     required int layerId,
     required int x,
     required int y,
   }) {
     final layer = map.layers[layerId];
-    if (layer is tiled.TileLayer) {
+    if (layer is TileLayer) {
       return layer.tileData?[y][x];
     }
     return null;
@@ -174,15 +172,15 @@ class RenderableTiledMap {
                 ids.contains(layer.layer.id),
           ),
         );
-      } else if (layer is TileLayer) {
+      } else if (layer is FlameTileLayer) {
         if (!(all ||
             named.contains(layer.layer.name) ||
             ids.contains(layer.layer.id))) {
           continue;
         }
 
-        if (layer.indexes[x][y] != null) {
-          tiles.add(layer.indexes[x][y]!);
+        if (layer.transforms[x][y] != null) {
+          tiles.add(layer.transforms[x][y]!);
         }
       }
     }
@@ -192,38 +190,60 @@ class RenderableTiledMap {
   /// Parses a file returning a [RenderableTiledMap].
   ///
   /// NOTE: this method looks for files under the path "assets/tiles/".
+  ///
+  /// {@template renderable_tile_map_factory}
+  /// By default, [FlameTileLayer] renders flipped tiles if they exist.
+  /// You can disable this by setting [ignoreFlip] to `true`.
+  /// {@endtemplate}
   static Future<RenderableTiledMap> fromFile(
     String fileName,
     Vector2 destTileSize, {
     Camera? camera,
+    bool? ignoreFlip,
   }) async {
     final contents = await Flame.bundle.loadString('assets/tiles/$fileName');
-    return fromString(contents, destTileSize, camera: camera);
+    return fromString(
+      contents,
+      destTileSize,
+      camera: camera,
+      ignoreFlip: ignoreFlip,
+    );
   }
 
   /// Parses a string returning a [RenderableTiledMap].
+  ///
+  /// {@macro renderable_tile_map_factory}
   static Future<RenderableTiledMap> fromString(
     String contents,
     Vector2 destTileSize, {
     Camera? camera,
+    bool? ignoreFlip,
   }) async {
-    final map = await tiled.TiledMap.fromString(
+    final map = await TiledMap.fromString(
       contents,
       FlameTsxProvider.parse,
     );
-    return fromTiledMap(map, destTileSize, camera: camera);
+    return fromTiledMap(
+      map,
+      destTileSize,
+      camera: camera,
+      ignoreFlip: ignoreFlip,
+    );
   }
 
-  /// Parses a [tiled.TiledMap] returning a [RenderableTiledMap].
+  /// Parses a [TiledMap] returning a [RenderableTiledMap].
+  ///
+  /// {@macro renderable_tile_map_factory}
   static Future<RenderableTiledMap> fromTiledMap(
-    tiled.TiledMap map,
+    TiledMap map,
     Vector2 destTileSize, {
     Camera? camera,
+    bool? ignoreFlip,
   }) async {
     // We're not going to load animation frames that are never referenced; but
     // we do supply the common cache for all layers in this map, and maintain
     // the update cycle for these in one place.
-    final animationFrames = <tiled.Tile, TileFrames>{};
+    final animationFrames = <Tile, TileFrames>{};
 
     // While this _should_ not be needed - it is possible have tilesets out of
     // order and Tiled won't complain, but we'll fail.
@@ -237,6 +257,7 @@ class RenderableTiledMap {
       camera,
       animationFrames,
       atlas: await TiledAtlas.fromTiledMap(map),
+      ignoreFlip: ignoreFlip,
     );
 
     return RenderableTiledMap(
@@ -248,81 +269,47 @@ class RenderableTiledMap {
     );
   }
 
-  static Future<List<RenderableLayer<tiled.Layer>>> _renderableLayers(
-    List<tiled.Layer> layers,
+  static Future<List<RenderableLayer<Layer>>> _renderableLayers(
+    List<Layer> layers,
     GroupLayer? parent,
-    tiled.TiledMap map,
+    TiledMap map,
     Vector2 destTileSize,
     Camera? camera,
-    Map<tiled.Tile, TileFrames> animationFrames, {
+    Map<Tile, TileFrames> animationFrames, {
     required TiledAtlas atlas,
+    bool? ignoreFlip,
   }) async {
-    final renderLayers = <RenderableLayer<tiled.Layer>>[];
-    for (final layer in layers.where((layer) => layer.visible)) {
-      switch (layer.runtimeType) {
-        case tiled.TileLayer:
-          renderLayers.add(
-            await TileLayer.load(
-              layer as tiled.TileLayer,
-              parent,
-              map,
-              destTileSize,
-              animationFrames,
-              atlas.clone(),
-            ),
-          );
-          break;
-        case tiled.ImageLayer:
-          renderLayers.add(
-            await ImageLayer.load(
-              layer as tiled.ImageLayer,
-              parent,
-              camera,
-              map,
-              destTileSize,
-            ),
-          );
-          break;
+    final visibleLayers = layers.where((layer) => layer.visible);
 
-        case tiled.Group:
-          final groupLayer = layer as tiled.Group;
-          final renderableGroup = GroupLayer(
-            groupLayer,
-            parent,
-            map,
-            destTileSize,
-          );
-          renderableGroup.children = await _renderableLayers(
-            groupLayer.layers,
-            renderableGroup,
-            map,
-            destTileSize,
-            camera,
-            animationFrames,
-            atlas: atlas,
-          );
-          renderLayers.add(renderableGroup);
-          break;
+    final layerLoaders = visibleLayers.map((layer) async {
+      final renderableLayer = await RenderableLayer.load(
+        layer: layer,
+        parent: parent,
+        map: map,
+        destTileSize: destTileSize,
+        camera: camera,
+        animationFrames: animationFrames,
+        atlas: atlas,
+        ignoreFlip: ignoreFlip,
+      );
 
-        case tiled.ObjectGroup:
-          renderLayers.add(
-            await ObjectLayer.load(
-              layer as tiled.ObjectGroup,
-              map,
-              destTileSize,
-            ),
-          );
-          break;
-
-        default:
-          assert(false, '$layer layer is unsupported.');
-          renderLayers.add(
-            UnsupportedLayer(layer, parent, map, destTileSize),
-          );
-          break;
+      if (layer is Group && renderableLayer is GroupLayer) {
+        renderableLayer.children = await _renderableLayers(
+          layer.layers,
+          renderableLayer,
+          map,
+          destTileSize,
+          camera,
+          animationFrames,
+          atlas: atlas,
+          ignoreFlip: ignoreFlip,
+        );
       }
-    }
-    return renderLayers;
+
+      return renderableLayer;
+    }).toList();
+
+    return Future.wait(layerLoaders);
   }
 
   /// Handle game resize and propagate it to renderable layers
@@ -354,7 +341,7 @@ class RenderableTiledMap {
 
   /// Returns a layer of type [T] with given [name] from all the layers
   /// of this map. If no such layer is found, null is returned.
-  T? getLayer<T extends tiled.Layer>(String name) {
+  T? getLayer<T extends Layer>(String name) {
     try {
       // layerByName will searches recursively starting with tiled.dart v0.8.5
       return map.layerByName(name) as T;

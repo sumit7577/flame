@@ -147,8 +147,8 @@ Here's what the different options mean:
 
 ## Standardization and Templates
 
-For every section or package added to the documentation, naming conventions, pathing, and
-standardized table of contents are important.  Every section and package must have a table of
+For every section or package added to the documentation, naming conventions, directory structure,
+and standardized table of contents are important.  Every section and package must have a table of
 contents or an entry in the parent markdown file to allow navigation from the left sidebar menu in
 logical or alphabetical order. Additionally, naming conventions should be followed for organization,
 such as:
@@ -168,26 +168,21 @@ building the project due to
 Building the documentation site on your own computer is fairly simple. All you need is the
 following:
 
-1. A working **Flutter** installation, accessible from the command line;
+1. A working **Flutter** installation, accessible from the command line.
 
-2. A **Python** environment, with python version 3.8+ or higher;
-    - You can verify this by running `python --version` from the command line;
-    - Having a dedicated python virtual environment is recommended but not required;
+2. **Melos** command-line tool, as per the [contributing] guide.
 
-3. A set of python **modules** listed in the `doc/_sphinx/requirements.txt` file;
-    - The easiest way to install these is to run
+3. A **Python** environment, with python version 3.8+ or higher. Having a dedicated python
+   virtual environment is recommended but not required.
 
-      ```console
-      pip install -r doc/_sphinx/requirements.txt
-      ```
+4. Install the remaining requirements using the command
 
-    - Verify that all packages were installed correctly, otherwise, an error may occur.
-
-4. Melos as per the [contributing](contributing.md#environment-setup) guide.
+   ```console
+   melos run doc-setup
+   ```
 
 Once these prerequisites are met, you can build the documentation by using the built-in Melos
 target:
-
 
 ```console
 melos doc-build
@@ -216,6 +211,7 @@ There are other make commands that you may find occasionally useful too:
 - **melos doc-clean** removes all cached generated files (in case the system gets stuck in a bad
 state).
 - **melos doc-linkcheck** to check whether there are any broken links in the documentation.
+- **melos doc-kill** removes any orphaned TCP threads running on port 8000.
 
 The generated html files will be in the `doc/_build/html` directory, you can view them directly
 by opening the file `doc/_build/html/index.html` in your browser. The only drawback is that the
@@ -230,3 +226,6 @@ Avoid having spaces in the paths to the docs since that will keep you from
 building the project due to
 [this bug](https://github.com/ipython/ipython/pull/13765).
 ```
+
+
+[contributing]: contributing.md#environment-setup

@@ -2,11 +2,10 @@ import 'dart:math';
 import 'dart:ui';
 
 import 'package:collection/collection.dart';
+import 'package:flame/cache.dart';
+import 'package:flame/components.dart';
+import 'package:flame/extensions.dart';
 import 'package:flame/geometry.dart';
-import 'package:flame/src/anchor.dart';
-import 'package:flame/src/cache/value_cache.dart';
-import 'package:flame/src/extensions/rect.dart';
-import 'package:flame/src/extensions/vector2.dart';
 import 'package:meta/meta.dart';
 
 class PolygonComponent extends ShapeComponent {
@@ -82,7 +81,6 @@ class PolygonComponent extends ShapeComponent {
   }) : this(
           normalsToVertices(relation, parentSize),
           position: position,
-          size: parentSize,
           angle: angle,
           anchor: anchor,
           scale: scale,
@@ -112,11 +110,19 @@ class PolygonComponent extends ShapeComponent {
   final _topLeft = Vector2.zero();
 
   @protected
-  void refreshVertices({required List<Vector2> newVertices}) {
+  void refreshVertices({
+    required List<Vector2> newVertices,
+    bool? shrinkToBoundsOverride,
+  }) {
     assert(
       newVertices.length == _vertices.length,
       'A polygon can not change their number of vertices',
     );
+    // If the list isn't ccw we have to reverse the order in order for
+    // `containsPoint` to work.
+    if (_isClockwise(newVertices)) {
+      newVertices.reverse();
+    }
     _topLeft.setFrom(newVertices[0]);
     newVertices.forEachIndexed((i, _) {
       final newVertex = newVertices[i];
@@ -130,7 +136,7 @@ class PolygonComponent extends ShapeComponent {
         vertices.map((p) => (p - _topLeft).toOffset()).toList(growable: false),
         true,
       );
-    if (shrinkToBounds) {
+    if (shrinkToBoundsOverride ?? shrinkToBounds) {
       final bounds = _path.getBounds();
       size.setValues(bounds.width, bounds.height);
       if (!manuallyPositioned) {
@@ -268,5 +274,14 @@ class PolygonComponent extends ShapeComponent {
       list[i] = list[list.length - 1 - i];
       list[list.length - 1 - i] = temp;
     }
+  }
+
+  bool _isClockwise(List<Vector2> vertices) {
+    var area = 0.0;
+    for (var i = 0; i < vertices.length; i++) {
+      final j = (i + 1) % vertices.length;
+      area += vertices[i].x * vertices[j].y - vertices[j].x * vertices[i].y;
+    }
+    return area >= 0;
   }
 }

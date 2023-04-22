@@ -48,7 +48,7 @@ cache, so make sure that you don't use the image afterwards.
 It can manually be used by instantiating it:
 
 ```dart
-import 'package:flame/images.dart';
+import 'package:flame/cache.dart';
 final imagesLoader = Images();
 Image image = await imagesLoader.load('yourImage.png');
 ```
@@ -117,6 +117,32 @@ class MyGame extends Game {
     _bullets.add(bulletSprite);
   }
 }
+```
+
+
+## Loading images over the network
+
+The Flame core package doesn't offer a built in method to loading images from the network.
+
+The reason for that is that Flutter/Dart does not have a built in http client, which requires
+a package to be used and since there are a couple of packages available out there, we refrain
+from forcing the user to use a specific package.
+
+With that said, it is quite simple to load images from the network once a http client package
+is chosen by the user. The following snippet shows how an `Image` can be fetched from the web
+using the [http](https://pub.dev/packages/http) package.
+
+```dart
+import 'package:http/http.dart' as http;
+import 'package:flutter/painting.dart';
+
+final response = await http.get('https://url.com/image.png');
+final image = await decodeImageFromList(response.bytes);
+```
+
+```{note}
+Check [`flame_network_assets`](https://pub.dev/packages/flame_network_assets)
+for a ready to use network assets solution that provides a built in cache.
 ```
 
 
@@ -193,7 +219,7 @@ In some cases you may want to merge multiple images into a single image; this is
 [Compositing](https://en.wikipedia.org/wiki/Compositing). This can be useful for example when
 working with the [SpriteBatch](#spritebatch) API to optimize your drawing calls.
 
-For such usecases Flame comes with the `ImageComposition` class. This allows you to add multiple
+For such use cases Flame comes with the `ImageComposition` class. This allows you to add multiple
 images, each at their own position, onto a new image:
 
 ```dart
@@ -278,7 +304,7 @@ final animation = SpriteAnimation.fromAsepriteData(image, jsonData);
 ```
 
 **Note:** trimmed sprite sheets are not supported by flame, so if you export your sprite sheet this
-kway, it will have the trimmed size, not the sprite original size.
+way, it will have the trimmed size, not the sprite original size.
 
 Animations, after created, have an update and render method; the latter renders the current frame,
 and the former ticks the internal clock to update the frames.
